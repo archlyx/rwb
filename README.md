@@ -103,7 +103,7 @@ Using RWB
 
 Point a web browser at
 
-http://machine/~you/rwb/rwb.pl
+    http://machine/~you/rwb/rwb.pl
 
 You will see a red, white, or blue banner that reflects current status, 
 and a map that is centered at your location.  The map has overlayed 
@@ -121,7 +121,7 @@ debugging output.   If you include ?debug=1 at the end of the URL,
 you will see this output in your browser.  You can also change the
 default in the rwb.pl script:
 
-my $debug=1;  # 1= output debugging data, 0= do not
+    my $debug=1;  # 1= output debugging data, 0= do not
 
 When you load http://machine/~you/rwb/rwb.pl, your browser sends the
 request, plus any cookies RWB has previously set to the server.  The
