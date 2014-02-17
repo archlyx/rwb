@@ -15,22 +15,22 @@ Requirements
 
 You must have the following software running:
 
-   Perl 5.8  
-     CGI
-     DBI
-     DBI::Oracle
-     Time::ParseDate
-   Oracle    (tested with Oracle 11g)
-   Apache    (or other web server)
-   Web Browser (tested with Google Chrome)
+    Perl 5.8  
+      CGI
+      DBI
+      DBI::Oracle
+      Time::ParseDate
+    Oracle    (tested with Oracle 11g)
+    Apache    (or other web server)
+    Web Browser (tested with Google Chrome)
 
 We assume the following:
    
-   machine     Name of your machine
-   you         Linux username
-   yourgroup   Your Linux group
-   youora      Your Oracle username
-   orapasswd   Your Oracle password
+    machine     Name of your machine
+    you         Linux username
+    yourgroup   Your Linux group
+    youora      Your Oracle username
+    orapasswd   Your Oracle password
 
 Your oracle account must have permissions to allow the creation of
 tables and sequences, inserts, deletes, updates, and selects.  Here 
@@ -38,11 +38,11 @@ is a minimal set of sysdba commands to do this if it isn't already the
 case.  These are not commands that can be executed by the 
 student, but rather by the database administrator:
 
-$ sqlplus /nolog
-SQL> connect / as sysdba;
-SQL> create user youora identified by orapasswd default tablespace users;
-SQL> grant connect, resource to youora;
-SQL> quit;
+    $ sqlplus /nolog
+    SQL> connect / as sysdba;
+    SQL> create user youora identified by orapasswd default tablespace users;
+    SQL> grant connect, resource to youora;
+    SQL> quit;
 
 In addition to the tables that you (the student) will create, RWB also
 needs to have access to the FEC data tables, which we assume are
@@ -65,12 +65,12 @@ going on.
 Contents
 --------
 
-   README         This file
-   rwb.sql        SQL code for creating the schema (but not the FEC tables)
-   rwb.pl         Perl CGI code that implements the application on the server
-   rwb.js         JavaScript, which is run by the client 
-   rwb.css        Style file that describes how to skin pages
-   rwb-drop.sql   How to delete RWB from the database
+    README         This file
+    rwb.sql        SQL code for creating the schema (but not the FEC tables)
+    rwb.pl         Perl CGI code that implements the application on the server
+    rwb.js         JavaScript, which is run by the client 
+    rwb.css        Style file that describes how to skin pages
+    rwb-drop.sql   How to delete RWB from the database
 
 
 Installing RWB
@@ -92,8 +92,8 @@ These lines reflect where oracle is installed:
 
 These lines reflect your oracle user and password:
 
-my $dbuser="CHANGEME";
-my $dbpasswd="CHANGEME";
+    my $dbuser="CHANGEME";
+    my $dbpasswd="CHANGEME";
 
 At Northwestern, the main thing you'll need to change are these 
 last two lines.
