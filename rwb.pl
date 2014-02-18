@@ -481,7 +481,7 @@ if ($action eq "invite-user") {
       print h2('You do not have the required permissions to invite users.');
     } else {
       if (!$run) { 
-        my @permissions=eval{ExecSQL($dbuser, $dbpasswd, 'select ACTION from RWB_PERMISSIONS', 'COL');};
+        my @permissions=eval{ExecSQL($dbuser, $dbpasswd, 'select unique ACTION from RWB_PERMISSIONS', 'COL');};
         print start_form(-name=>'InviteUser'),
               h2('Invite User'),
               p,
@@ -520,7 +520,7 @@ if ($action eq "invite-user") {
               p,
               "Email: ", textfield(-name=>'email'),
               p,
-              "Password: ", textfield(-name=>'password'),
+              "Password: ", password_field(-name=>'password'),
               p,
               hidden(-name=>'run',-default=>['1']),
               hidden(-name=>'act',-default=>['invite-user']),
