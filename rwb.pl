@@ -473,63 +473,77 @@ if ($action eq "near") {
 
 if ($action eq "invite-user") { 
   my $token=param("token");
+  my $invitee=param("invitee");
+  my $perm=param("perm");
 
   if (!defined($token)) {
     if (!UserCan($user,"invite-users") && !UserCan($user,"manage-users")) { 
       print h2('You do not have the required permissions to invite users.');
     } else {
       if (!$run) { 
+        my @permissions=eval{ExecSQL($dbuser, $dbpasswd, 'select ACTION from RWB_PERMISSIONS', 'COL');};
         print start_form(-name=>'InviteUser'),
-  	h2('Invite User'),
-  	  "Email: ", textfield(-name=>'email'),
+              h2('Invite User'),
               p,
-                hidden(-name=>'run',-default=>['1']),
-                  hidden(-name=>'act',-default=>['invite-user']),
-                    submit,
-                      end_form,
-                        hr;
+              "Email: ", textfield(-name=>'email'),
+              hidden(-name=>'run',-default=>['1']),
+              hidden(-name=>'act',-default=>['invite-user']),
+              submit,
+              p,
+              h3('Set Permissions'),
+              p,
+              checkbox_group(-name=>'permissions',
+                             -value=>\@permissions,
+                             -linebreak=>'true');
+              hr,
+              end_form;
       } else {
         my $email=param('email');
-        my $timestamp=time() + 60 * 60 * 24;
+        my $perm=join('_', param('permissions'));
+        my $timestamp=time() + 60 * 60;
         my $hash=GenHash($timestamp);
-        my $link="http://murphy.wot.eecs.northwestern.edu/~$dbuser/rwb/rwb.pl?act=invite-user&token=$timestamp-$hash";
+        my $link="http://murphy.wot.eecs.northwestern.edu/~$dbuser/rwb/rwb.pl?act=invite-user&token=$timestamp\_$hash&invitee=$user&perm=$perm";
   
         SendEmail($email, $link);
         print "An Email has been sent to $email\n";
       }
     }
   } else {
-    my ($time_input, $hash_input)=split('-', $token);
+    my ($time_input, $hash_input)=split('_', $token);
+    my @inviteperm=split('_', $perm);
     my $hash_true=GenHash($time_input);
     if (($hash_input eq $hash_true) && ($time_input > time())) {
       if (!$run) { 
         print start_form(-name=>'AddUser'),
-  	h2('Add Invited User'),
-  	  "Name: ", textfield(-name=>'name'),
-  	    p,
-  	      "Email: ", textfield(-name=>'email'),
-  		p,
-  		  "Password: ", textfield(-name=>'password'),
-  		    p,
-  		     "Referrer: ", textfield(-name=>'referrer'),
-  		       p,
-  		         hidden(-name=>'run',-default=>['1']),
-  		           hidden(-name=>'act',-default=>['invite-user']),
-  		             hidden(-name=>'token',-default=>["$token"]),
-  			     submit,
-  			       end_form,
-  			         hr;
+              h2('Add Invited User'),
+              "Username: ", textfield(-name=>'name'),
+              p,
+              "Email: ", textfield(-name=>'email'),
+              p,
+              "Password: ", textfield(-name=>'password'),
+              p,
+              hidden(-name=>'run',-default=>['1']),
+              hidden(-name=>'act',-default=>['invite-user']),
+              hidden(-name=>'token',-default=>["$token"]),
+              hidden(-name=>'invitee',-default=>["$invitee"]),
+              hidden(-name=>'perm',-default=>["$perm"]),
+              submit,
+              end_form,
+              hr;
       } else {
         my $name=param('name');
         my $email=param('email');
         my $password=param('password');
-        my $referrer=param('referrer');
         my $error;
-        $error=UserAdd($name,$password,$email,$referrer);
+        my $errorperm;
+        $error=UserAdd($name,$password,$email,$invitee);
         if ($error) { 
-  	  print "Can't add user because: $error";
+          print "Can't add user because: $error";
         } else {
-  	  print "Added user $name $email as referred by $referrer\n";
+          foreach (@inviteperm) {
+            $errorperm=GiveUserPerm($name, $_);
+          }
+          print "Added user $name $email as referred by $invitee\n";
         }
       }
     } else {
@@ -540,7 +554,48 @@ if ($action eq "invite-user") {
 }
 
 if ($action eq "give-opinion-data") { 
-  print h2("Giving Location Opinion Data Is Unimplemented");
+  print "<script src=\"http://ajax.googleapis.com/ajax/libs/jquery/1.4.2/jquery.min.js\" type=\"text/javascript\"></script>";
+  print "<script type=\"text/javascript\" src=\"loc.js\"> </script>";
+
+  if (!UserCan($user,"give-opinion-data")) { 
+    print h2('You do not have the required permissions to give opinions.');
+  } else {
+    my %labels=('-1'=>'Red',
+                '0'=> 'White',
+                '1'=>'Blue');
+    if (!$run) { 
+      print start_html(-onLoad=>"findPosition()");
+      print start_form(),
+            h2('Give Opinions'),
+            p,
+            popup_menu(-name=>'dropdown',
+                       -size=>'1',
+                       -values=>['-1', '0', '1'],
+                       -labels=>\%labels,
+                       -default=>'-1'),
+            hidden(-name=>'run',-default=>['1']),
+            hidden(-name=>'act',-default=>['give-opinion-data']),
+            hidden(-name=>'lat', -id=>'lat'),
+            hidden(-name=>'long', -id=>'long'),
+            submit,
+            end_form,
+            hr;
+      print end_html();
+    } else {
+      my $color=param('dropdown');
+      my $lat=param('lat');
+      my $long=param('long');
+      my $error;
+      $error=OpinionAdd($user,$color,$lat,$long);
+      if ($error) { 
+        print "Can't add your opinion because: $error";
+      } else {
+        print "Added the opinion of user $user\n";
+      }
+    }
+  }
+  print "<p><a href=\"rwb.pl?act=base&run=1\">Return</a></p>";
+
 }
 
 if ($action eq "give-cs-ind-data") { 
@@ -1234,6 +1289,13 @@ sub GenHash {
   $hash=uc($hash);
 
   return $hash;
+}
+
+# Add the opinion of current user
+sub OpinionAdd {
+  eval { ExecSQL($dbuser,$dbpasswd,
+		 "insert into rwb_opinions (submitter,color,latitude,longitude) values (?,?,?,?)",undef,@_);};
+  return $@;
 }
 
 ######################################################################
