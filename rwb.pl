@@ -348,13 +348,14 @@ if ($action eq "base") {
   # And a div to populate with info about nearby stuff
   #
   #
-  if ($debug) {
-    # visible if we are debugging
-    print "<div id=\"data\" style=\:width:100\%; height:10\%\"></div>";
-  } else {
-    # invisible otherwise
-    print "<div id=\"data\" style=\"display: none;\"></div>";
-  }
+  print "<div id=\"data\" style=\:width:100\%; height:10\%\"></div>";
+#  if ($debug) {
+#    # visible if we are debugging
+#    print "<div id=\"data\" style=\:width:100\%; height:10\%\"></div>";
+#  } else {
+#    # invisible otherwise
+#    print "<div id=\"data\" style=\"display: none\"></div>";
+#  }
 
 
 # height=1024 width=1024 id=\"info\" name=\"info\" onload=\"UpdateMap()\"></iframe>";
@@ -429,8 +430,11 @@ if ($action eq "near") {
 	       
 
   if ($what{committees}) { 
+    my (@moneyBlueDisp, $error2) = committeeMoneyBlue($latne,$longne,$latsw,$longsw,$cycle,$format);
     my ($str,$error) = Committees($latne,$longne,$latsw,$longsw,$cycle,$format);
+
     if (!$error) {
+      print "Total Money: $moneyBlueDisp[0][0]";
       if ($format eq "table") { 
 	print "<h2>Nearby committees</h2>$str";
       } else {
@@ -471,6 +475,14 @@ if ($action eq "near") {
 }
 
 
+#
+# INVITE-USER
+#
+# Invite other users
+#
+#
+#
+#
 if ($action eq "invite-user") { 
   my $token=param("token");
   my $invitee=param("invitee");
@@ -515,12 +527,12 @@ if ($action eq "invite-user") {
     if (($hash_input eq $hash_true) && ($time_input > time())) {
       if (!$run) { 
         print start_form(-name=>'AddUser'),
-              h2('Add Invited User'),
+              h2('Welcome to Red, White and Blue'),
               "Username: ", textfield(-name=>'name'),
               p,
               "Email: ", textfield(-name=>'email'),
               p,
-              "Password: ", password_field(-name=>'password'),
+              "Password: ", text_field(-name=>'password'),
               p,
               hidden(-name=>'run',-default=>['1']),
               hidden(-name=>'act',-default=>['invite-user']),
@@ -553,6 +565,15 @@ if ($action eq "invite-user") {
   print "<p><a href=\"rwb.pl?act=base&run=1\">Return</a></p>";
 }
 
+
+#
+# GIVE-OPINION-DATA
+#
+# Add user's opinions to the database
+#
+#
+#
+#
 if ($action eq "give-opinion-data") { 
   print "<script src=\"http://ajax.googleapis.com/ajax/libs/jquery/1.4.2/jquery.min.js\" type=\"text/javascript\"></script>";
   print "<script type=\"text/javascript\" src=\"loc.js\"> </script>";
@@ -1150,7 +1171,11 @@ sub MakeRaw {
   #
   # Check to see if there is anything to output
   #
-  $out="<pre id=\"$id\">\n";
+  if ($debug) {
+    $out="<pre id=\"$id\">\n";
+  } else {
+    $out="<pre hidden id=\"$id\">\n";
+  }
   #
   # If it's a single row, just output it in an obvious way
   #
@@ -1296,6 +1321,86 @@ sub OpinionAdd {
   eval { ExecSQL($dbuser,$dbpasswd,
 		 "insert into rwb_opinions (submitter,color,latitude,longitude) values (?,?,?,?)",undef,@_);};
   return $@;
+}
+
+#the subrountine that calculate the total money invovled by committee    
+# committee_to_candidate, committee_to_committee 
+# when come to comm_to_comm, the situatio is more complicated: 
+# the contributor and receiver are all committtees, which of them should we account for?
+# the implementation here is to account only the committee contributor, and divide the party by receiver committee
+# DEM assigned to blue, REP assigned to red
+        
+sub committeeMoneyBlue {
+        my ($latne,$longne,$latsw,$longsw,$cycle,$format) = @_;
+        my @moneyBlue;
+
+        @moneyBlue = ExecSQL($dbuser, $dbpasswd,"
+                                              select sum(transaction_amnt) from
+                                              ((select transaction_amnt
+                                              from cs339.comm_to_cand
+                                              natural join cs339.cmte_id_to_geo 
+                                              natural join cs339.candidate_master
+                                              where cand_pty_affiliation = 'DEM' and
+                                              cycle=? and latitude>? and latitude<? and longitude>? 
+                                              and longitude<?) 
+                                              union 
+                                              (select transaction_amnt 
+                                              from (select cs339.comm_to_comm.cmte_id, transaction_amnt 
+                                              from cs339.comm_to_comm, cs339.cmte_id_to_geo
+                                              where cs339.comm_to_comm.other_id = cs339.cmte_id_to_geo.cmte_id)
+                                              natural join cs339.committee_master
+                                              natural join cs339.cmte_id_to_geo
+                                              where cmte_pty_affiliation = 'DEM' and
+                                              cycle=? and latitude>? and latitude<? and longitude>? 
+                                              and longitude<?))
+                                              ",
+                                              undef,$cycle,$latsw,$latne,$longsw,$longne,
+                                              $cycle,$latsw,$latne,$longsw,$longne);
+        
+        
+        if ($@) {
+          return (undef,$@);
+        } else {
+         # return (MakeRaw("totalBlueMoney","2D",@moneyBlue),$@);
+          return ($moneyBlue[0], $@);
+        }
+     
+    }
+
+sub committeeMoneyRed {
+    my ($latne,$longne,$latsw,$longsw,$cycle,$format) = @_;
+    my @moneyComToCanRed;
+    my @moneyComToComRed;
+    my @moneyRed;
+
+    eval {
+    @moneyComToCanRed = ExecSQL($dbuser, $dbpasswd, "select sum(transaction_amnt) 
+                                              from cs339.comm_to_cand
+                                              natural join cs339.cmte_id_to_geo 
+                                              natural join cs339.candidate_master
+                                              where cand_pty_affiliation = 'REP' and
+                                              cycle=? and latitude>? and latitude<? and longitude>? 
+                                              and longitude<?",undef,$cycle,$latsw,$latne,$longsw,$longne); 
+    };
+
+   eval {
+   @moneyComToComRed = ExecSQL($dbuser, $dbpasswd, "select sum(transaction_amnt) 
+                                              from (select cs339.comm_to_comm.cmte_id, transaction_amnt 
+                                              from cs339.comm_to_comm, cs339.cmte_id_to_geo where cs339.comm_to_comm.other_id = cs339.cmte_id_to_geo.cmte_id)
+                                              natural join cs339.committee_master
+                                              natural join cs339.cmte_id_to_geo
+                                              where cmte_pty_affiliation = 'REP' and
+                                              cycle=? and latitude>? and latitude<? and longitude>? 
+                                              and longitude<?",undef,$cycle,$latsw,$latne,$longsw,$longne);    
+    };                                              
+
+    @moneyRed = @moneyComToCanRed + @moneyComToComRed; 
+
+    if ($@) {
+    return (undef,$@);
+    } else {
+      return (MakeRaw("totalRedMoney","2D",@moneyRed),$@);
+    }
 }
 
 ######################################################################
