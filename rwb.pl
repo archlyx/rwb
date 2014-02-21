@@ -389,6 +389,40 @@ if ($action eq "base") {
     print "<p><a href=\"rwb.pl?act=logout&run=1\">Logout</a></p>";
   }
 
+  #
+  # The options for data
+  #
+  #
+  print "<div id=\"filter\" style=\"width:15\%\">";
+
+  my @rows;
+  @rows = ExecSQL($dbuser, $dbpasswd, "select distinct cycle from cs339.committee_master order by cycle", "COL");
+  my %labels=('committees' => 'Committees',
+              'candidates' => 'Candidates',
+              'individuals' => 'Individuals',
+              'opinions' => 'Opinions');
+  print start_form(-name=>'selections', -id=>'selections'),
+        h3("Select data"),
+        checkbox_group(
+        -name     => 'options',
+        -values   => ['committees', 'candidates', 'individuals', 'opinions'],
+        -labels   => \%labels,
+        -id       => 'checkbox_group_id',
+        -columns  => 1,
+        -width    => '50%',
+        -rows     => 4), p;
+	
+  print 'Select cycle ';
+  print popup_menu(
+        -name => 'dropdown',
+        -id => 'cycles',
+        -size => '1',
+        -values => \@rows),p,
+        end_form;
+  print submit(-name=> 'Confirm',
+               -id  => 'confirmButton'),p;
+  print "</div>";
+
 }
 
 #
@@ -430,11 +464,16 @@ if ($action eq "near") {
 	       
 
   if ($what{committees}) { 
-    my (@moneyBlueDisp, $error2) = committeeMoneyBlue($latne,$longne,$latsw,$longsw,$cycle,$format);
+    my ($moneyBlueDisp, $error2) = committeeMoneyBlue($latne,$longne,$latsw,$longsw,$cycle,$format);
     my ($str,$error) = Committees($latne,$longne,$latsw,$longsw,$cycle,$format);
 
     if (!$error) {
-      print "Total Money: $moneyBlueDisp[0][0]";
+      print p;
+      print "Total Money: 
+             <span style=\"background-color: blue; color: white;\">
+             $moneyBlueDisp
+             </span>";
+
       if ($format eq "table") { 
 	print "<h2>Nearby committees</h2>$str";
       } else {
@@ -526,19 +565,16 @@ if ($action eq "invite-user") {
     my $hash_true=GenHash($time_input);
     if (($hash_input eq $hash_true) && ($time_input > time())) {
       if (!$run) { 
-        print start_form(-name=>'AddUser'),
-              h2('Welcome to Red, White and Blue'),
-              "Username: ", textfield(-name=>'name'),
-              p,
-              "Email: ", textfield(-name=>'email'),
-              p,
-              "Password: ", text_field(-name=>'password'),
-              p,
-              hidden(-name=>'run',-default=>['1']),
-              hidden(-name=>'act',-default=>['invite-user']),
-              hidden(-name=>'token',-default=>["$token"]),
-              hidden(-name=>'invitee',-default=>["$invitee"]),
-              hidden(-name=>'perm',-default=>["$perm"]),
+        print start_form(-name=>"RegisterUser"),
+              h2("Welcome to Red,White and Blue"),
+              "Username: ", textfield(-name=>"name"), p,
+              "Email: ", textfield(-name=>"email"), p,
+              "Password: ", textfield(-name=>"password"), p,
+              hidden(-name=>'run', -default=>['1']),
+              hidden(-name=>'act', -default=>['invite-user']),
+              hidden(-name=>'token', -default=>["$token"]),
+              hidden(-name=>'invitee', -default=>["$invitee"]),
+              hidden(-name=>'perm', -default=>["$perm"]),
               submit,
               end_form,
               hr;
@@ -1332,37 +1368,36 @@ sub OpinionAdd {
         
 sub committeeMoneyBlue {
         my ($latne,$longne,$latsw,$longsw,$cycle,$format) = @_;
-        my @moneyBlue;
+        my (@moneyBlueCand, @moneyBlueComm);
 
-        @moneyBlue = ExecSQL($dbuser, $dbpasswd,"
-                                              select sum(transaction_amnt) from
-                                              ((select transaction_amnt
-                                              from cs339.comm_to_cand
-                                              natural join cs339.cmte_id_to_geo 
-                                              natural join cs339.candidate_master
-                                              where cand_pty_affiliation = 'DEM' and
-                                              cycle=? and latitude>? and latitude<? and longitude>? 
-                                              and longitude<?) 
-                                              union 
-                                              (select transaction_amnt 
-                                              from (select cs339.comm_to_comm.cmte_id, transaction_amnt 
-                                              from cs339.comm_to_comm, cs339.cmte_id_to_geo
-                                              where cs339.comm_to_comm.other_id = cs339.cmte_id_to_geo.cmte_id)
-                                              natural join cs339.committee_master
-                                              natural join cs339.cmte_id_to_geo
-                                              where cmte_pty_affiliation = 'DEM' and
-                                              cycle=? and latitude>? and latitude<? and longitude>? 
-                                              and longitude<?))
-                                              ",
-                                              undef,$cycle,$latsw,$latne,$longsw,$longne,
-                                              $cycle,$latsw,$latne,$longsw,$longne);
+        eval{ @moneyBlueCand = ExecSQL($dbuser, $dbpasswd,
+                                      "select sum(transaction_amnt)
+                                       from cs339.comm_to_cand natural join cs339.candidate_master natural join
+                                           (select cmte_id
+                                            from cs339.cmte_id_to_geo 
+                                            where latitude>? and latitude<? and longitude>? and longitude<?)
+                                       where cand_pty_affiliation = 'DEM' and cycle=?",
+                                       undef,$latsw,$latne,$longsw,$longne,$cycle); };
+        eval{ @moneyBlueComm = ExecSQL($dbuser, $dbpasswd,
+                                      "select sum(transaction_amnt)
+                                       from (
+                                           select cs339.comm_to_comm.cmte_id, transaction_amnt
+                                           from cs339.comm_to_comm, 
+                                                (select cmte_id
+                                                 from cs339.cmte_id_to_geo 
+                                                 where latitude>? and latitude<? and longitude>? and longitude<?) geo
+                                           where cs339.comm_to_comm.other_id = geo.cmte_id and
+                                                 cs339.comm_to_comm.cycle=?
+                                        ) natural join cs339.committee_master
+                                        where cmte_pty_affiliation = 'DEM' and cycle=?",
+                                        undef,$latsw,$latne,$longsw,$longne,$cycle,$cycle); };
         
         
         if ($@) {
           return (undef,$@);
         } else {
          # return (MakeRaw("totalBlueMoney","2D",@moneyBlue),$@);
-          return ($moneyBlue[0], $@);
+          return ($moneyBlueCand[0][0] + $moneyBlueComm[0][0], $@);
         }
      
     }
