@@ -10,6 +10,8 @@
 //
 // First time run: request current location, with callback to Start
 //
+//var totalIndMoney;
+
 if (navigator.geolocation)  {
     navigator.geolocation.getCurrentPosition(Start);
 }
@@ -20,55 +22,105 @@ function UpdateMapById(id, tag) {
     var data = target.innerHTML;
 	
  	if (tag == "COMMITTEE"){
- 	var image = {
-	url: 'img/Blue_comm.png',
-	size: new google.maps.Size(20, 32),
-	origin: new google.maps.Point(0,0),
-	anchor: new google.maps.Point(0, 32)
-	};
+		var rows  = data.split("\n");
+		for (i in rows) {
+		var cols  = rows[i].split("\t");
+		var lat   = cols[0];
+		var long  = cols[1];
+		var party = cols[3];
+		var markerFile;
+		if (party == "DEM")
+		markerFile = 'img/Blue_comm.png';
+		else if (party == "REP")
+		markerFile = 'img/Red_comm.png';
+		else
+		markerFile = 'img/Other_comm2.png';
+		var image = {
+		url: markerFile,
+		size: new google.maps.Size(20, 32),
+		origin: new google.maps.Point(0,0),
+		anchor: new google.maps.Point(0, 32)
+		};
+
+		markers.push(new google.maps.Marker({ map:map,
+								position: new google.maps.LatLng(lat,long),
+								icon:image,
+								title: tag+"\n"+cols.join("\n")}));	
+		}
 	}
  	
 	if (tag == "CANDIDATE"){
- 	var image = {
-	url: 'img/Red_comm.png',
-	size: new google.maps.Size(20, 32),
-	origin: new google.maps.Point(0,0),
-	anchor: new google.maps.Point(0, 32)
-	};	
+	
+		var rows  = data.split("\n");
+		for (i in rows) {
+		var cols  = rows[i].split("\t");
+		var lat   = cols[0];
+		var long  = cols[1];
+		var party = cols[3];
+		var markerFile;
+		if (party == "DEM")
+		markerFile = 'img/cand_blue.png';
+		else if (party == "REP")
+		markerFile = 'img/cand_red.png';
+		else
+		markerFile = 'img/cand_green.png';
+		var image = {
+		url: markerFile,
+		size: new google.maps.Size(30, 42),
+		origin: new google.maps.Point(0,0),
+		anchor: new google.maps.Point(0, 32)
+		};
+
+		markers.push(new google.maps.Marker({ map:map,
+								position: new google.maps.LatLng(lat,long),
+								icon:image,
+								title: tag+"\n"+cols.join("\n")}));	
+		}
 	}
 	
 	if (tag == "INDIVIDUAL"){
+	var rows  = data.split("\n");
+	//totalIndMoney = 0;
+
+	for (i in rows) {
+	var cols  = rows[i].split("\t");
+	var lat   = cols[0];
+	var long  = cols[1];
+	//if (!isNaN(parseInt(cols[7])))
+	//totalIndMoney = totalIndMoney + parseInt(cols[7]);
  	var image = {
 	url: 'img/Individual.png',
 	size: new google.maps.Size(20, 32),
 	origin: new google.maps.Point(0,0),
 	anchor: new google.maps.Point(0, 32)
-	};	
+	};
+		markers.push(new google.maps.Marker({ map:map,
+						position: new google.maps.LatLng(lat,long),
+						icon:image,
+						title: tag+"\n"+cols.join("\n")}));	
+	}
 	}
 	
 	if (tag == "OPINION"){
+	var rows  = data.split("\n");
+	for (i in rows) {
+	var cols  = rows[i].split("\t");
+	var lat   = cols[0];
+	var long  = cols[1];
  	var image = {
 	url: 'img/Green_opinion.png',
 	size: new google.maps.Size(20, 32),
 	origin: new google.maps.Point(0,0),
 	anchor: new google.maps.Point(0, 32)
 	};	
-	}	
+			markers.push(new google.maps.Marker({ map:map,
+					position: new google.maps.LatLng(lat,long),
+					icon:image,
+					title: tag+"\n"+cols.join("\n")}));	
+	}
+	}
 	
 
-    var rows  = data.split("\n");
-   
-    for (i in rows) {
-	var cols = rows[i].split("\t");
-	var lat = cols[0];
-	var long = cols[1];
-	
-	markers.push(new google.maps.Marker({ map:map,
-						    position: new google.maps.LatLng(lat,long),
-							icon:image,
-						    title: tag+"\n"+cols.join("\n")}));
-	
-    }
 }
 
 function ClearMarkers()
@@ -126,7 +178,6 @@ function UpdateMap()
 }
 
 
-
 function NewData(data)
 {
   var target = document.getElementById("data");
@@ -159,6 +210,7 @@ function ViewShift()
     color.style.backgroundColor='white';
    
     // debug status flows through by cookie
+    //$.get("rwb.pl?act=near&indMoney="+totalIndMoney+"&latne="+ne.lat()+"&longne="+ne.lng()+"&latsw="+sw.lat()+"&longsw="+sw.lng()+"&format=raw&cycle="+cyclenum+"&what="+whatselected, NewData);
     $.get("rwb.pl?act=near&latne="+ne.lat()+"&longne="+ne.lng()+"&latsw="+sw.lat()+"&longsw="+sw.lng()+"&format=raw&cycle="+cyclenum+"&what="+whatselected, NewData);
 }
 
