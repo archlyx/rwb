@@ -75,8 +75,8 @@ use Time::ParseDate;
 #
 # You need to override these for access to your database
 #
-my $dbuser="yzs572";
-my $dbpasswd="zQmys30eX";
+my $dbuser="sli401";
+my $dbpasswd="zoS37Klsi";
 
 
 #
@@ -229,8 +229,8 @@ my @outputcookies;
 #
 if (defined($outputcookiecontent)) { 
   my $cookie=cookie(-name=>$cookiename,
-		    -value=>$outputcookiecontent,
-		    -expires=>($deletecookie ? '-1h' : '+1h'));
+            -value=>$outputcookiecontent,
+            -expires=>($deletecookie ? '-1h' : '+1h'));
   push @outputcookies, $cookie;
 } 
 #
@@ -239,7 +239,7 @@ if (defined($outputcookiecontent)) {
 #
 if (defined($outputdebugcookiecontent)) { 
   my $cookie=cookie(-name=>$debugcookiename,
-		    -value=>$outputdebugcookiecontent);
+            -value=>$outputdebugcookiecontent);
   push @outputcookies, $cookie;
 }
 
@@ -299,12 +299,12 @@ if ($action eq "login") {
   if ($logincomplain or !$run) { 
     print start_form(-name=>'Login'),
       h2('Login to Red, White, and Blue'),
-	"Name:",textfield(-name=>'user'),	p,
-	  "Password:",password_field(-name=>'password'),p,
-	    hidden(-name=>'act',default=>['login']),
-	      hidden(-name=>'run',default=>['1']),
-		submit,
-		  end_form;
+    "Name:",textfield(-name=>'user'),    p,
+      "Password:",password_field(-name=>'password'),p,
+        hidden(-name=>'act',default=>['login']),
+          hidden(-name=>'run',default=>['1']),
+        submit,
+          end_form;
   }
 }
 
@@ -343,19 +343,23 @@ if ($action eq "base") {
   #
   print "<div id=\"map\" style=\"width:100\%; height:80\%\"></div>";
   
-  
+  #
+  #
+  # And the aggregated results
+  #
+  print "<div id=\"calc\" style=\"width:100\%; min-height:1\%\" overflow=\"auto\"></div>";
+
   #
   # And a div to populate with info about nearby stuff
   #
   #
-  print "<div id=\"data\" style=\:width:100\%; height:10\%\"></div>";
-#  if ($debug) {
-#    # visible if we are debugging
-#    print "<div id=\"data\" style=\:width:100\%; height:10\%\"></div>";
-#  } else {
-#    # invisible otherwise
-#    print "<div id=\"data\" style=\"display: none\"></div>";
-#  }
+  if ($debug) {
+    # visible if we are debugging
+    print "<div id=\"data\" style=\"width:100\%; min-height:1\%\"></div>";
+  } else {
+    # invisible otherwise
+    print "<div id=\"data\" style=\"display: none\"></div>";
+  }
 
 
 # height=1024 width=1024 id=\"info\" name=\"info\" onload=\"UpdateMap()\"></iframe>";
@@ -386,42 +390,57 @@ if ($action eq "base") {
       print "<p><a href=\"rwb.pl?act=add-perm-user\">Add User Permission</a></p>";
       print "<p><a href=\"rwb.pl?act=revoke-perm-user\">Revoke User Permission</a></p>";
     }
+    if (UserCan($user,"query-fec-data") || UserCan($user,"query-opinion-data")) {
+      #
+      # The options for data
+      #
+      #
+      print "<div id=\"filter\" style=\"width:15\%\">";
+    
+      my @values;
+      if (UserCan($user,"query-fec-data")) {
+        if (UserCan($user,"query-opinion-data")) {
+          @values = ('committees', 'candidates', 'individuals', 'opinions');
+        } else {
+          @values = ('committees', 'candidates', 'individuals');
+        }
+      } else {
+        @values = ('opinions');
+      }
+
+      my @rows;
+      @rows = ExecSQL($dbuser, $dbpasswd, 
+                      "select distinct cycle from cs339.committee_master order by cycle", 'COL');
+      my %labels=('committees' => 'Committees',
+                  'candidates' => 'Candidates',
+                  'individuals' => 'Individuals',
+                  'opinions' => 'Opinions');
+
+      print start_form(-name=>'selections', -id=>'selections'),
+            h3("Select data"),
+            checkbox_group(
+            -name     => 'options',
+            -values   => \@values,
+            -labels   => \%labels,
+            -id       => 'checkbox_group_id',
+            -columns  => 1,
+            -width    => '50%',
+            -rows     => scalar @values), p;
+        
+      print 'Select cycle ';
+      print popup_menu(
+            -name => 'dropdown',
+            -id => 'cycles',
+            -size => '1',
+            -values => \@rows),p,
+            end_form;
+      print submit(-name=> 'Confirm',
+                   -id  => 'confirmButton'),p;
+      print "</div>";
+    }
     print "<p><a href=\"rwb.pl?act=logout&run=1\">Logout</a></p>";
   }
 
-  #
-  # The options for data
-  #
-  #
-  print "<div id=\"filter\" style=\"width:15\%\">";
-
-  my @rows;
-  @rows = ExecSQL($dbuser, $dbpasswd, "select distinct cycle from cs339.committee_master order by cycle", "COL");
-  my %labels=('committees' => 'Committees',
-              'candidates' => 'Candidates',
-              'individuals' => 'Individuals',
-              'opinions' => 'Opinions');
-  print start_form(-name=>'selections', -id=>'selections'),
-        h3("Select data"),
-        checkbox_group(
-        -name     => 'options',
-        -values   => ['committees', 'candidates', 'individuals', 'opinions'],
-        -labels   => \%labels,
-        -id       => 'checkbox_group_id',
-        -columns  => 1,
-        -width    => '50%',
-        -rows     => 4), p;
-	
-  print 'Select cycle ';
-  print popup_menu(
-        -name => 'dropdown',
-        -id => 'cycles',
-        -size => '1',
-        -values => \@rows),p,
-        end_form;
-  print submit(-name=> 'Confirm',
-               -id  => 'confirmButton'),p;
-  print "</div>";
 
 }
 
@@ -449,93 +468,102 @@ if ($action eq "near") {
   my $whatparam = param("what");
   my $format = param("format");
   my $cycle = param("cycle");
+  my $calc = param("calc");
   my %what;
   
   $format = "table" if !defined($format);
   $cycle = "1112" if !defined($cycle);
 
   if (!defined($whatparam) || $whatparam eq "all") { 
-    %what = ( committees => 1, 
-	      candidates => 1,
-	      individuals =>1,
-	      opinions => 1);
+    %what = (committees => 1, 
+             candidates => 1,
+             individuals =>1,
+             opinions => 1);
   } else {
     map {$what{$_}=1} split(/\s*,\s*/,$whatparam);
   }
-	       
+           
 
-  if ($what{committees}) { 
-    #my ($committeeNumber, $error0) = localCommitteeNumber($latne,$longne,$latsw,$longsw,$cycle,$format);
-	#progressive
-	# while ($committeeNumber < 5) {
-		# my ($committeeNumber, $error0) = localCommitteeNumber($latne,$longne,$latsw,$longsw,$cycle,$format);
-		# print "<10";
-		# }
-	my ($moneyBlueDisp, $error2) = committeeMoneyBlue($latne,$longne,$latsw,$longsw,$cycle,$format);
-    my ($moneyRedDisp, $error3) = committeeMoneyRed($latne,$longne,$latsw,$longsw,$cycle,$format);
-    my ($str,$error) = Committees($latne,$longne,$latsw,$longsw,$cycle,$format);
-
-    if (!$error && (!$error2) && (!$error3)) {
-      print p;
-      print "Money to Democratic from committee: 
-             <span style=\"background-color: blue; color: white;\">
-             $moneyBlueDisp
-             </span>";
-	  print p;
-	  print "Money to Republican from committee:
-			 <span style=\"background-color: red; color: white;\">
-             $moneyRedDisp
-             </span>";
-
-      if ($format eq "table") { 
-	print "<h2>Nearby committees</h2>$str";
-      } else {
-	print $str;
+  if ($calc eq '0') {
+    if ($what{committees}) { 
+      my ($str,$error) = Committees($latne,$longne,$latsw,$longsw,$cycle,$format);
+  
+      if (!$error) {
+        if ($format eq "table") { 
+          print "<h2>Nearby committees</h2>$str";
+        } else {
+          print $str;
+        }
       }
     }
-  }
-  if ($what{candidates}) {
-	my ($str,$error) = Candidates($latne,$longne,$latsw,$longsw,$cycle,$format);
-    if (!$error) {
-      if ($format eq "table") { 
-	print "<h2>Nearby candidates</h2>$str";
-      } else {
-	print $str;
+    if ($what{candidates}) {
+      my ($str,$error) = Candidates($latne,$longne,$latsw,$longsw,$cycle,$format);
+      if (!$error) {
+        if ($format eq "table") { 
+          print "<h2>Nearby candidates</h2>$str";
+        } else {
+          print $str;
+        }
       }
     }
-  }
-  if ($what{individuals}) {
-    my ($indMoneyBule,$indMoneyRed,$error2) = individualMoney($latne,$longne,$latsw,$longsw,$cycle,$format);
-	
-    my ($str,$error) = Individuals($latne,$longne,$latsw,$longsw,$cycle,$format);
-    if (!$error) {
-      print p;
-      print "Money to Democratic from individual: 
-             <span style=\"background-color: blue; color: white;\">
-             $indMoneyBule
-             </span>";
-      print p;
-      print "Money to Democratic from individual: 
-             <span style=\"background-color: red; color: white;\">
-             $indMoneyRed
-             </span>";
-	   
-      if ($format eq "table") { 
-	print "<h2>Nearby individuals</h2>$str";
-      } else {
-	print $str;
+    if ($what{individuals}) {
+      
+      my ($str,$error) = Individuals($latne,$longne,$latsw,$longsw,$cycle,$format);
+      if (!$error) {
+        if ($format eq "table") { 
+          print "<h2>Nearby individuals</h2>$str";
+        } else {
+          print $str;
+        }
       }
     }
-  }
-  if ($what{opinions}) {
-    my ($str,$error) = Opinions($latne,$longne,$latsw,$longsw,$cycle,$format);
-    if (!$error) {
-      if ($format eq "table") { 
-	print "<h2>Nearby opinions</h2>$str";
-      } else {
-	print $str;
+    if ($what{opinions}) {
+      my ($str,$error) = Opinions($latne,$longne,$latsw,$longsw,$cycle,$format);
+      if (!$error) {
+        if ($format eq "table") { 
+          print "<h2>Nearby opinions</h2>$str";
+        } else {
+          print $str;
+        }
       }
     }
+  } else {
+    print "<div>";
+    print p;
+    if ($what{committees}) {
+      my ($comMoneyBlue, $comMoneyRed, $error) = committeeMoney($latne,$longne,$latsw,
+                                                                $longsw,$cycle,$format);
+  
+      if (!$error) {
+        print "Money to Democratic from committee: 
+               <span style=\"background-color: blue; color: white;\">
+               $comMoneyBlue
+               </span>";
+        print p;
+        print "Money to Republican from committee:
+               <span style=\"background-color: red; color: white;\">
+               $comMoneyRed
+               </span>";
+        print p;
+      }
+    }
+    if ($what{individuals}) {
+      my ($indMoneyBule,$indMoneyRed,$error) = individualMoney($latne,$longne,$latsw,
+                                                               $longsw,$cycle,$format);
+      if (!$error) {
+        print "Money to Democratic from individual: 
+               <span style=\"background-color: blue; color: white;\">
+               $indMoneyBule
+               </span>";
+        print p;
+        print "Money to Democratic from individual: 
+               <span style=\"background-color: red; color: white;\">
+               $indMoneyRed
+               </span>";
+        print p;
+      }
+    }
+    print "</div>"
   }
 }
 
@@ -699,18 +727,18 @@ if ($action eq "add-user") {
   } else {
     if (!$run) { 
       print start_form(-name=>'AddUser'),
-	h2('Add User'),
-	  "Name: ", textfield(-name=>'name'),
-	    p,
-	      "Email: ", textfield(-name=>'email'),
-		p,
-		  "Password: ", textfield(-name=>'password'),
-		    p,
-		      hidden(-name=>'run',-default=>['1']),
-			hidden(-name=>'act',-default=>['add-user']),
-			  submit,
-			    end_form,
-			      hr;
+    h2('Add User'),
+      "Name: ", textfield(-name=>'name'),
+        p,
+          "Email: ", textfield(-name=>'email'),
+        p,
+          "Password: ", textfield(-name=>'password'),
+            p,
+              hidden(-name=>'run',-default=>['1']),
+            hidden(-name=>'act',-default=>['add-user']),
+              submit,
+                end_form,
+                  hr;
     } else {
       my $name=param('name');
       my $email=param('email');
@@ -718,9 +746,9 @@ if ($action eq "add-user") {
       my $error;
       $error=UserAdd($name,$password,$email,$user);
       if ($error) { 
-	print "Can't add user because: $error";
+    print "Can't add user because: $error";
       } else {
-	print "Added user $name $email as referred by $user\n";
+    print "Added user $name $email as referred by $user\n";
       }
     }
   }
@@ -744,22 +772,22 @@ if ($action eq "delete-user") {
       # Generate the add form.
       #
       print start_form(-name=>'DeleteUser'),
-	h2('Delete User'),
-	  "Name: ", textfield(-name=>'name'),
-	    p,
-	      hidden(-name=>'run',-default=>['1']),
-		hidden(-name=>'act',-default=>['delete-user']),
-		  submit,
-		    end_form,
-		      hr;
+    h2('Delete User'),
+      "Name: ", textfield(-name=>'name'),
+        p,
+          hidden(-name=>'run',-default=>['1']),
+        hidden(-name=>'act',-default=>['delete-user']),
+          submit,
+            end_form,
+              hr;
     } else {
       my $name=param('name');
       my $error;
       $error=UserDelete($name);
       if ($error) { 
-	print "Can't delete user because: $error";
+    print "Can't delete user because: $error";
       } else {
-	print "Deleted user $name\n";
+    print "Deleted user $name\n";
       }
     }
   }
@@ -784,28 +812,28 @@ if ($action eq "add-perm-user") {
       # Generate the add form.
       #
       print start_form(-name=>'AddUserPerm'),
-	h2('Add User Permission'),
-	  "Name: ", textfield(-name=>'name'),
-	    "Permission: ", textfield(-name=>'permission'),
-	      p,
-		hidden(-name=>'run',-default=>['1']),
-		  hidden(-name=>'act',-default=>['add-perm-user']),
-		  submit,
-		    end_form,
-		      hr;
+    h2('Add User Permission'),
+      "Name: ", textfield(-name=>'name'),
+        "Permission: ", textfield(-name=>'permission'),
+          p,
+        hidden(-name=>'run',-default=>['1']),
+          hidden(-name=>'act',-default=>['add-perm-user']),
+          submit,
+            end_form,
+              hr;
       my ($table,$error);
       ($table,$error)=PermTable();
       if (!$error) { 
-	print "<h2>Available Permissions</h2>$table";
+    print "<h2>Available Permissions</h2>$table";
       }
     } else {
       my $name=param('name');
       my $perm=param('permission');
       my $error=GiveUserPerm($name,$perm);
       if ($error) { 
-	print "Can't add permission to user because: $error";
+    print "Can't add permission to user because: $error";
       } else {
-	print "Gave user $name permission $perm\n";
+    print "Gave user $name permission $perm\n";
       }
     }
   }
@@ -830,28 +858,28 @@ if ($action eq "revoke-perm-user") {
       # Generate the add form.
       #
       print start_form(-name=>'RevokeUserPerm'),
-	h2('Revoke User Permission'),
-	  "Name: ", textfield(-name=>'name'),
-	    "Permission: ", textfield(-name=>'permission'),
-	      p,
-		hidden(-name=>'run',-default=>['1']),
-		  hidden(-name=>'act',-default=>['revoke-perm-user']),
-		  submit,
-		    end_form,
-		      hr;
+    h2('Revoke User Permission'),
+      "Name: ", textfield(-name=>'name'),
+        "Permission: ", textfield(-name=>'permission'),
+          p,
+        hidden(-name=>'run',-default=>['1']),
+          hidden(-name=>'act',-default=>['revoke-perm-user']),
+          submit,
+            end_form,
+              hr;
       my ($table,$error);
       ($table,$error)=PermTable();
       if (!$error) { 
-	print "<h2>Available Permissions</h2>$table";
+    print "<h2>Available Permissions</h2>$table";
       }
     } else {
       my $name=param('name');
       my $perm=param('permission');
       my $error=RevokeUserPerm($name,$perm);
       if ($error) { 
-	print "Can't revoke permission from user because: $error";
+    print "Can't revoke permission from user because: $error";
       } else {
-	print "Revoked user $name permission $perm\n";
+    print "Revoked user $name permission $perm\n";
       }
     }
   }
@@ -913,23 +941,29 @@ sub Committees {
   my ($latne,$longne,$latsw,$longsw,$cycle,$format) = @_;
   my @rows;
   eval { 
-    @rows = ExecSQL($dbuser, $dbpasswd, "select latitude, longitude, cmte_nm, cmte_pty_affiliation, cmte_st1, cmte_st2, cmte_city, cmte_st, cmte_zip from cs339.committee_master natural join cs339.cmte_id_to_geo where cycle=? and latitude>? and latitude<? and longitude>? and longitude<?",undef,$cycle,$latsw,$latne,$longsw,$longne);
+    @rows = ExecSQL($dbuser, $dbpasswd,
+                    "select latitude, longitude, cmte_nm, cmte_pty_affiliation, 
+                            cmte_st1, cmte_st2, cmte_city, cmte_st, cmte_zip 
+                     from cs339.committee_master natural join cs339.cmte_id_to_geo 
+                     where cycle=? and latitude>? and latitude<? and 
+                           longitude>? and longitude<?",
+                    undef,$cycle,$latsw,$latne,$longsw,$longne);
   };
   
   # my $i = 1
   # while (length < 5)
-	# {	SQL;($latne * $i)
-		
-		# $i = $i * 2
-		
-	
+    # {    SQL;($latne * $i)
+        
+        # $i = $i * 2
+        
+    
   if ($@) { 
     return (undef,$@);
   } else {
     if ($format eq "table") { 
       return (MakeTable("committee_data","2D",
-			["latitude", "longitude", "name", "party", "street1", "street2", "city", "state", "zip"],
-			@rows),$@);
+            ["latitude", "longitude", "name", "party", "street1", "street2", "city", "state", "zip"],
+            @rows),$@);
     } else {
       return (MakeRaw("committee_data","2D",@rows),$@);
     }
@@ -946,7 +980,13 @@ sub Candidates {
   my ($latne,$longne,$latsw,$longsw,$cycle,$format) = @_;
   my @rows;
   eval { 
-    @rows = ExecSQL($dbuser, $dbpasswd, "select latitude, longitude, cand_name, cand_pty_affiliation, cand_st1, cand_st2, cand_city, cand_st, cand_zip from cs339.candidate_master natural join cs339.cand_id_to_geo where cycle=? and latitude>? and latitude<? and longitude>? and longitude<?",undef,$cycle,$latsw,$latne,$longsw,$longne);
+    @rows = ExecSQL($dbuser, $dbpasswd, 
+                    "select latitude, longitude, cand_name, cand_pty_affiliation, 
+                            cand_st1, cand_st2, cand_city, cand_st, cand_zip 
+                     from cs339.candidate_master natural join cs339.cand_id_to_geo 
+                     where cycle=? and latitude>? and latitude<? and 
+                           longitude>? and longitude<?",
+                    undef,$cycle,$latsw,$latne,$longsw,$longne);
   };
   
   if ($@) { 
@@ -954,8 +994,8 @@ sub Candidates {
   } else {
     if ($format eq "table") {
       return (MakeTable("candidate_data", "2D",
-			["latitude", "longitude", "name", "party", "street1", "street2", "city", "state", "zip"],
-			@rows),$@);
+            ["latitude", "longitude", "name", "party", "street1", "street2", "city", "state", "zip"],
+            @rows),$@);
     } else {
       return (MakeRaw("candidate_data","2D",@rows),$@);
     }
@@ -975,7 +1015,13 @@ sub Individuals {
   my ($latne,$longne,$latsw,$longsw,$cycle,$format) = @_;
   my @rows;
   eval { 
-    @rows = ExecSQL($dbuser, $dbpasswd, "select latitude, longitude, name, city, state, zip_code, employer, transaction_amnt from cs339.individual natural join cs339.ind_to_geo where cycle=? and latitude>? and latitude<? and longitude>? and longitude<?",undef,$cycle,$latsw,$latne,$longsw,$longne);
+    @rows = ExecSQL($dbuser, $dbpasswd,
+                    "select latitude, longitude, name, city, state, 
+                            zip_code, employer, transaction_amnt 
+                     from cs339.individual natural join cs339.ind_to_geo 
+                     where cycle=? and latitude>? and latitude<? and 
+                           longitude>? and longitude<?",
+                    undef,$cycle,$latsw,$latne,$longsw,$longne);
   };
   
   if ($@) { 
@@ -983,8 +1029,8 @@ sub Individuals {
   } else {
     if ($format eq "table") { 
       return (MakeTable("individual_data", "2D",
-			["latitude", "longitude", "name", "city", "state", "zip", "employer", "amount"],
-			@rows),$@);
+            ["latitude", "longitude", "name", "city", "state", "zip", "employer", "amount"],
+            @rows),$@);
     } else {
       return (MakeRaw("individual_data","2D",@rows),$@);
     }
@@ -1002,7 +1048,12 @@ sub Opinions {
   my ($latne, $longne, $latsw, $longsw, $cycle,$format) = @_;
   my @rows;
   eval { 
-    @rows = ExecSQL($dbuser, $dbpasswd, "select latitude, longitude, color from rwb_opinions where latitude>? and latitude<? and longitude>? and longitude<?",undef,$latsw,$latne,$longsw,$longne);
+    @rows = ExecSQL($dbuser, $dbpasswd,
+                    "select latitude, longitude, color 
+                     from rwb_opinions 
+                     where latitude>? and latitude<? and 
+                           longitude>? and longitude<?",
+                    undef,$latsw,$latne,$longsw,$longne);
   };
   
   if ($@) { 
@@ -1010,8 +1061,8 @@ sub Opinions {
   } else {
     if ($format eq "table") { 
       return (MakeTable("opinion_data","2D",
-			["latitude", "longitude", "name", "city", "state", "zip", "employer", "amount"],
-			@rows),$@);
+            ["latitude", "longitude", "name", "city", "state", "zip", "employer", "amount"],
+            @rows),$@);
     } else {
       return (MakeRaw("opinion_data","2D",@rows),$@);
     }
@@ -1031,9 +1082,9 @@ sub PermTable {
     return (undef,$@);
   } else {
     return (MakeTable("perm_table",
-		      "2D",
-		     ["Perm"],
-		     @rows),$@);
+              "2D",
+             ["Perm"],
+             @rows),$@);
   }
 }
 
@@ -1049,9 +1100,9 @@ sub UserTable {
     return (undef,$@);
   } else {
     return (MakeTable("user_table",
-		      "2D",
-		     ["Name", "Email"],
-		     @rows),$@);
+              "2D",
+             ["Name", "Email"],
+             @rows),$@);
   }
 }
 
@@ -1067,9 +1118,9 @@ sub UserPermTable {
     return (undef,$@);
   } else {
     return (MakeTable("userperm_table",
-		      "2D",
-		     ["Name", "Permission"],
-		     @rows),$@);
+              "2D",
+             ["Name", "Permission"],
+             @rows),$@);
   }
 }
 
@@ -1083,7 +1134,7 @@ sub UserPermTable {
 #
 sub UserAdd { 
   eval { ExecSQL($dbuser,$dbpasswd,
-		 "insert into rwb_users (name,password,email,referer) values (?,?,?,?)",undef,@_);};
+         "insert into rwb_users (name,password,email,referer) values (?,?,?,?)",undef,@_);};
   return $@;
 }
 
@@ -1106,7 +1157,7 @@ sub UserDel {
 #
 sub GiveUserPerm { 
   eval { ExecSQL($dbuser,$dbpasswd,
-		 "insert into rwb_permissions (name,action) values (?,?)",undef,@_);};
+         "insert into rwb_permissions (name,action) values (?,?)",undef,@_);};
   return $@;
 }
 
@@ -1119,7 +1170,7 @@ sub GiveUserPerm {
 #
 sub RevokeUserPerm { 
   eval { ExecSQL($dbuser,$dbpasswd,
-		 "delete from rwb_permissions where name=? and action=?",undef,@_);};
+         "delete from rwb_permissions where name=? and action=?",undef,@_);};
   return $@;
 }
 
@@ -1240,11 +1291,7 @@ sub MakeRaw {
   #
   # Check to see if there is anything to output
   #
-  if ($debug) {
-    $out="<pre id=\"$id\">\n";
-  } else {
-    $out="<pre hidden id=\"$id\">\n";
-  }
+  $out="<pre id=\"$id\">\n";
   #
   # If it's a single row, just output it in an obvious way
   #
@@ -1388,7 +1435,7 @@ sub GenHash {
 # Add the opinion of current user
 sub OpinionAdd {
   eval { ExecSQL($dbuser,$dbpasswd,
-		 "insert into rwb_opinions (submitter,color,latitude,longitude) values (?,?,?,?)",undef,@_);};
+         "insert into rwb_opinions (submitter,color,latitude,longitude) values (?,?,?,?)",undef,@_);};
   return $@;
 }
 
@@ -1399,100 +1446,71 @@ sub OpinionAdd {
 # the implementation here is to account only the committee contributor, and divide the party by receiver committee
 # DEM assigned to blue, REP assigned to red
         
-sub committeeMoneyBlue {
+sub committeeMoney {
         my ($latne,$longne,$latsw,$longsw,$cycle,$format) = @_;
-        my (@moneyBlueCand, @moneyBlueComm);
-		
-		# eval {
-		# @localCommitteeNumber = ExecSQL($dbuser, $dbpasswd, "select count(cmte_id)
-														# from cs339.committee_master
-														# natural join cs339.cmte_id_to_geo
-														# where cycle=? and latitude>? and latitude<? 
-														# and longitude>? and longitude<?",
-														# undef,$cycle,$latsw,$latne,$longsw,$longne); 
-		# };
-		
-		
+        my (@moneyCand, @moneyComm);
 
-        eval{ @moneyBlueCand = ExecSQL($dbuser, $dbpasswd,
-                                      "select sum(transaction_amnt)
-                                       from cs339.comm_to_cand natural join cs339.candidate_master natural join
-                                           (select cmte_id
-                                            from cs339.cmte_id_to_geo 
-                                            where latitude>? and latitude<? and longitude>? and longitude<?)
-                                       where cand_pty_affiliation = 'DEM' and cycle=?",
-                                       undef,$latsw,$latne,$longsw,$longne,$cycle); };
-        eval{ @moneyBlueComm = ExecSQL($dbuser, $dbpasswd,
-                                      "select sum(transaction_amnt)
-                                       from (
-                                           select cs339.comm_to_comm.cmte_id, transaction_amnt
-                                           from cs339.comm_to_comm, 
-                                                (select cmte_id
-                                                 from cs339.cmte_id_to_geo 
-                                                 where latitude>? and latitude<? and longitude>? and longitude<?) geo
-                                           where cs339.comm_to_comm.other_id = geo.cmte_id and
-                                                 cs339.comm_to_comm.cycle=?
-                                        ) natural join cs339.committee_master
-                                        where cmte_pty_affiliation = 'DEM' and cycle=?",
-                                        undef,$latsw,$latne,$longsw,$longne,$cycle,$cycle); };
+        eval{ @moneyCand = ExecSQL($dbuser, $dbpasswd,
+                                   "select cand_pty_affiliation, sum(transaction_amnt)
+                                    from cs339.comm_to_cand CTC 
+                                         join cs339.cmte_id_to_geo CTG
+                                         on CTC.other_id = CTG.cmte_id
+                                         join cs339.candidate_master CM
+                                         on CTC.cand_id = CM.cand_id and
+                                            CTC.cycle = CM.cycle
+                                    where latitude>? and latitude<? and 
+                                          longitude>? and longitude<? and
+                                          CTC.cycle=?
+                                    group by cand_pty_affiliation
+                                    having cand_pty_affiliation = 'DEM' or
+                                           cand_pty_affiliation = 'REP'
+                                    order by cand_pty_affiliation",
+                                   undef,$latsw,$latne,$longsw,$longne,$cycle); };
+        eval{ @moneyComm = ExecSQL($dbuser, $dbpasswd,
+                                   "select cmte_pty_affiliation, sum(transaction_amnt)
+                                    from cs339.comm_to_comm CTC 
+                                         join cs339.cmte_id_to_geo CTG
+                                         on CTC.other_id = CTG.cmte_id
+                                         join cs339.committee_master CM
+                                         on CTC.cmte_id = CM.cmte_id and
+                                            CTC.cycle = CM.cycle
+                                    where latitude>? and latitude<? and
+                                          longitude>? and longitude<? and
+                                          CTC.cycle=?
+                                    group by cmte_pty_affiliation
+                                    having cmte_pty_affiliation = 'DEM' or
+                                           cmte_pty_affiliation = 'REP'
+                                    order by cmte_pty_affiliation",
+                                   undef,$latsw,$latne,$longsw,$longne,$cycle); };
         
         
         if ($@) {
           return (undef,$@);
         } else {
-          return ($moneyBlueCand[0][0] + $moneyBlueComm[0][0], $@);
-        }
-     
-}
-
-sub committeeMoneyRed {
-   my ($latne,$longne,$latsw,$longsw,$cycle,$format) = @_;
-        my (@moneyRedCand, @moneyRedComm);
-
-        eval{ @moneyRedCand = ExecSQL($dbuser, $dbpasswd,
-                                      "select sum(transaction_amnt)
-                                       from cs339.comm_to_cand natural join cs339.candidate_master natural join
-                                           (select cmte_id
-                                            from cs339.cmte_id_to_geo 
-                                            where latitude>? and latitude<? and longitude>? and longitude<?)
-                                       where cand_pty_affiliation = 'REP' and cycle=?",
-                                       undef,$latsw,$latne,$longsw,$longne,$cycle); };
-        eval{ @moneyRedComm = ExecSQL($dbuser, $dbpasswd,
-                                      "select sum(transaction_amnt)
-                                       from (
-                                           select cs339.comm_to_comm.cmte_id, transaction_amnt
-                                           from cs339.comm_to_comm, 
-                                                (select cmte_id
-                                                 from cs339.cmte_id_to_geo 
-                                                 where latitude>? and latitude<? and longitude>? and longitude<?) geo
-                                           where cs339.comm_to_comm.other_id = geo.cmte_id and
-                                                 cs339.comm_to_comm.cycle=?
-                                        ) natural join cs339.committee_master
-                                        where cmte_pty_affiliation = 'REP' and cycle=?",
-                                        undef,$latsw,$latne,$longsw,$longne,$cycle,$cycle); };
-
-		if ($@) {
-          return (undef,$@);
-        } else {
-          return ($moneyRedCand[0][0] + $moneyRedComm[0][0], $@);
+          return ($moneyCand[0][1] + $moneyComm[0][1], 
+                  $moneyCand[1][1] + $moneyComm[1][1], 
+                  $@);
         }
      
 }
 
 sub individualMoney {
-	my ($latne,$longne,$latsw,$longsw,$cycle,$format) = @_;
-	my  @moneyInd;
-	
-	eval{ @moneyInd = ExecSQL($dbuser, $dbpasswd,
-				  "select  cmte_pty_affiliation, sum(transaction_amnt) as all_join
-				  from cs339.individual 
-				  natural join cs339.ind_to_geo 
-				  natural join cs339.committee_master
-				  where ((cmte_pty_affiliation = 'DEM') or (cmte_pty_affiliation = 'REP')) and
-				  latitude>? and latitude<? and longitude>? and longitude<? and cycle =?
-				  group by cmte_pty_affiliation order by cmte_pty_affiliation",
-				  undef,$latsw,$latne,$longsw,$longne,$cycle); };
-	if ($@) {
+    my ($latne,$longne,$latsw,$longsw,$cycle,$format) = @_;
+    my  @moneyInd;
+    
+    eval{ @moneyInd = ExecSQL($dbuser, $dbpasswd,
+                              "select cmte_pty_affiliation, sum(transaction_amnt)
+                               from cs339.individual 
+                                    natural join cs339.ind_to_geo 
+                                    natural join cs339.committee_master
+                               where ((cmte_pty_affiliation = 'DEM') or 
+                                     (cmte_pty_affiliation = 'REP')) and
+                                     latitude>? and latitude<? and 
+                                     longitude>? and longitude<? and cycle =?
+                               group by cmte_pty_affiliation 
+                               order by cmte_pty_affiliation",
+                              undef,$latsw,$latne,$longsw,$longne,$cycle); };
+    if ($@) {
           return (undef,$@);
         } else {
           return ($moneyInd[0][1],$moneyInd[1][1],$@);
@@ -1500,46 +1518,46 @@ sub individualMoney {
 }
 
 sub localCommitteeNumber {
-	my ($latne,$longne,$latsw,$longsw,$cycle,$format) = @_;
-	my (@localCommitteeNumber);
-	
-	eval {
-	@localCommitteeNumber = ExecSQL($dbuser, $dbpasswd, "select count(cmte_id)
-													from cs339.committee_master
-													natural join cs339.cmte_id_to_geo
-													where cycle=? and latitude>? and latitude<? 
-													and longitude>? and longitude<?",
-											        undef,$cycle,$latsw,$latne,$longsw,$longne); 
-													
-	};
-	
-	if ($@) {
-	return (undef,$@);
-	} else {
-	  return ($localCommitteeNumber[0][0],$@);
-	}
+    my ($latne,$longne,$latsw,$longsw,$cycle,$format) = @_;
+    my (@localCommitteeNumber);
+    
+    eval {
+    @localCommitteeNumber = ExecSQL($dbuser, $dbpasswd, "select count(cmte_id)
+                                                    from cs339.committee_master
+                                                    natural join cs339.cmte_id_to_geo
+                                                    where cycle=? and latitude>? and latitude<? 
+                                                    and longitude>? and longitude<?",
+                                                    undef,$cycle,$latsw,$latne,$longsw,$longne); 
+                                                    
+    };
+    
+    if ($@) {
+    return (undef,$@);
+    } else {
+      return ($localCommitteeNumber[0][0],$@);
+    }
 }
 
 sub localCandidateNumber {
-	my ($latne,$longne,$latsw,$longsw,$cycle,$format) = @_;
-	my (@localCandidateNumber);
-	
-	eval {
-	@localCandidateNumber = ExecSQL($dbuser, $dbpasswd, "select count(cand_id)
-													from cs339.candidate_master
-													natural join cs339.cand_id_to_geo
-													where cycle=? and latitude>? and latitude<? 
-													and longitude>? and longitude<?",
-											        undef,$cycle,$latsw,$latne,$longsw,$longne); 
-	};
-	
-	if ($@) {
-	return (undef,$@);
-	} else #if ($localCandidateNumber[0][0]<5){
-	{
-	  return ($localCandidateNumber[0][0],$@);
-	}
-}	
+    my ($latne,$longne,$latsw,$longsw,$cycle,$format) = @_;
+    my (@localCandidateNumber);
+    
+    eval {
+    @localCandidateNumber = ExecSQL($dbuser, $dbpasswd, "select count(cand_id)
+                                                    from cs339.candidate_master
+                                                    natural join cs339.cand_id_to_geo
+                                                    where cycle=? and latitude>? and latitude<? 
+                                                    and longitude>? and longitude<?",
+                                                    undef,$cycle,$latsw,$latne,$longsw,$longne); 
+    };
+    
+    if ($@) {
+    return (undef,$@);
+    } else #if ($localCandidateNumber[0][0]<5){
+    {
+      return ($localCandidateNumber[0][0],$@);
+    }
+}    
 
 
 ######################################################################
