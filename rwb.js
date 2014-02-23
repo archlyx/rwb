@@ -188,6 +188,19 @@ function NewCalc(calc)
   
   var matches = calc.match(/<div>([\s\S]*?)<\/div>/);
   target.innerHTML = matches[1];
+
+  var avg = document.getElementById("opAvg");
+  var pty = parseFloat(avg.innerText)
+  if (pty > 0) {
+      avg.style.backgroundColor = 'blue';
+      avg.style.color = 'white';
+  } else if (pty < 0) {
+      avg.style.backgroundColor = 'red';
+      avg.style.color = 'white';
+  } else {
+      avg.style.backgroundColor = 'white';
+      avg.style.color = 'black';
+  }
 }
 
 function ViewShift()

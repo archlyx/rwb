@@ -347,7 +347,10 @@ if ($action eq "base") {
   #
   # And the aggregated results
   #
-  print "<div id=\"calc\" style=\"width:100\%; min-height:1\%\" overflow=\"auto\"></div>";
+  print "<div id=\"calc\" style=\"width:40\%; min-height:1\%\" 
+          overflow=\"auto\"></div>";
+
+  print hr;
 
   #
   # And a div to populate with info about nearby stuff
@@ -535,13 +538,12 @@ if ($action eq "near") {
                                                                 $longsw,$cycle,$format);
   
       if (!$error) {
-        print "Money to Democratic from committee: 
-               <span style=\"background-color: blue; color: white;\">
+        print "<h3>Money from <b>COMMITTEES</b></h3>";
+        print "Democratic: <span style=\"background-color: blue; color: white;\">
                $comMoneyBlue
                </span>";
         print p;
-        print "Money to Republican from committee:
-               <span style=\"background-color: red; color: white;\">
+        print "Republican: <span style=\"background-color: red; color: white;\">
                $comMoneyRed
                </span>";
         print p;
@@ -551,15 +553,27 @@ if ($action eq "near") {
       my ($indMoneyBule,$indMoneyRed,$error) = individualMoney($latne,$longne,$latsw,
                                                                $longsw,$cycle,$format);
       if (!$error) {
-        print "Money to Democratic from individual: 
-               <span style=\"background-color: blue; color: white;\">
+        print "<h3>Money from <b>INDIVIDUALS</b></h3>";
+        print "Democratic: <span style=\"background-color: blue; color: white;\">
                $indMoneyBule
                </span>";
         print p;
-        print "Money to Democratic from individual: 
-               <span style=\"background-color: red; color: white;\">
+        print "Republican: <span style=\"background-color: red; color: white;\">
                $indMoneyRed
                </span>";
+        print p;
+      }
+    }
+    if ($what{opinions}) {
+      my ($opAvg,$opStd, $error) = opinionSum($latne,$longne,$latsw,
+                                              $longsw,$format);
+      $opAvg = sprintf("%.3f", $opAvg);
+      $opStd = sprintf("%.3f", $opStd);
+      if (!$error) {
+        print "<h3>Opinions in Current Map Region:</h3>";
+        print "Average: <span id=\"opAvg\">$opAvg</span>";
+        print p;
+        print "Standard deviation: <span id=\"opStd\">$opStd</span>";
         print p;
       }
     }
@@ -586,7 +600,8 @@ if ($action eq "invite-user") {
       print h2('You do not have the required permissions to invite users.');
     } else {
       if (!$run) { 
-        my @permissions=eval{ExecSQL($dbuser, $dbpasswd, 'select unique ACTION from RWB_PERMISSIONS', 'COL');};
+        my @permissions=eval{ExecSQL($dbuser, $dbpasswd,
+                                     "select unique ACTION from RWB_PERMISSIONS", 'COL');};
         print start_form(-name=>'InviteUser'),
               h2('Invite User'),
               p,
@@ -1517,6 +1532,22 @@ sub individualMoney {
         }
 }
 
+sub opinionSum {
+    my ($latne,$longne,$latsw,$longsw,$format) = @_;
+    my @opinions;
+    
+    eval{ @opinions = ExecSQL($dbuser, $dbpasswd,
+                              "select avg(color), stddev(color)
+                               from rwb_opinions 
+                               where latitude>? and latitude<? and 
+                                     longitude>? and longitude<?",
+                              undef,$latsw,$latne,$longsw,$longne); };
+    if ($@) {
+          return (undef,$@);
+        } else {
+          return ($opinions[0][0],$opinions[0][1],$@);
+        }
+}
 sub localCommitteeNumber {
     my ($latne,$longne,$latsw,$longsw,$cycle,$format) = @_;
     my (@localCommitteeNumber);
