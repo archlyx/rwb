@@ -601,7 +601,9 @@ if ($action eq "invite-user") {
     } else {
       if (!$run) { 
         my @permissions=eval{ExecSQL($dbuser, $dbpasswd,
-                                     "select unique ACTION from RWB_PERMISSIONS", 'COL');};
+                                     "select ACTION from RWB_PERMISSIONS
+                                      where name=?", 'COL', $user);};
+        print "<div style=\"width:25\%\">";
         print start_form(-name=>'InviteUser'),
               h2('Invite User'),
               p,
@@ -614,9 +616,11 @@ if ($action eq "invite-user") {
               p,
               checkbox_group(-name=>'permissions',
                              -value=>\@permissions,
-                             -linebreak=>'true');
+                             -linebreak=>'true',
+                             -columns=>1);
               hr,
               end_form;
+        print "</div>";
       } else {
         my $email=param('email');
         my $perm=join('_', param('permissions'));
