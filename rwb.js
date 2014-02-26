@@ -20,8 +20,8 @@ if (navigator.geolocation)  {
 function UpdateMapById(id, tag) {
     var target = document.getElementById(id);
     var data = target.innerHTML;
-    
-     if (tag == "COMMITTEE"){
+
+    if (tag == "COMMITTEE"){
         var rows  = data.split("\n");
         for (i in rows) {
             var cols  = rows[i].split("\t");
@@ -80,7 +80,6 @@ function UpdateMapById(id, tag) {
     
     if (tag == "INDIVIDUAL"){
         var rows  = data.split("\n");
-        //totalIndMoney = 0;
 
         for (i in rows) {
             var cols  = rows[i].split("\t");
@@ -145,8 +144,6 @@ function UpdateMap()
        selected.push($(this).val());
     });
 
-    console.log(selected);
-
     if ($.inArray("committees", selected)>-1) {
       UpdateMapById("committee_data","COMMITTEE");
     };
@@ -188,7 +185,7 @@ function NewCalc(calc)
   
   var matches = calc.match(/<div>([\s\S]*?)<\/div>/);
   target.innerHTML = matches[1];
-
+  
   var avg = document.getElementById("opAvg");
   var pty = parseFloat(avg.innerText)
   if (pty > 0) {
@@ -232,8 +229,33 @@ function ViewShift()
         calc.innerHTML="<b><blink>Generating Summary...</blink></b>";
     }
 
-    $.get("rwb.pl?act=near&latne="+ne.lat()+"&longne="+ne.lng()+"&latsw="+sw.lat()+"&longsw="+sw.lng()+"&format=raw&cycle="+cyclenum+"&what="+whatselected+"&calc=1", NewCalc);
+    var latlng = [];
+    if (isInArray(selected, "committees")) {
+      var comNewLoc = document.getElementById("comNewLoc").innerHTML.split(',');
+      latlng = comNewLoc;
+    }
+    if (isInArray(selected, "individuals")) {
+      var indNewLoc = document.getElementById("indNewLoc").innerHTML.split(',');
+      if (indNewLoc[0] > latlng[0] || latlng.length < 1) {
+          latlng = indNewLoc;
+      }
+    }
+    if (isInArray(selected, "opinions")) {
+      var opNewLoc = document.getElementById("opNewLoc").innerHTML.split(',');
+      if (opNewLoc[0] > latlng[0] || latlng.length < 1) {
+          latlng = opNewLoc;
+      }
+    }
 
+    $.get("rwb.pl?act=near&latne="+latlng[0]+"&longne="+latlng[1]+"&latsw="+latlng[2]+"&longsw="+latlng[3]+"&format=raw&cycle="+cyclenum+"&what="+whatselected+"&calc=1", NewCalc);
+
+}
+
+// Function to judge if str is in the array
+// From http://stackoverflow.com/questions/237104/array-containsobj-in-javascript
+function isInArray(arr, str)
+{
+    return arr.indexOf(str) >= 0 ? true : false;
 }
 
 function Reposition(pos)

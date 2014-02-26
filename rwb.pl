@@ -75,6 +75,8 @@ use Time::ParseDate;
 #
 # You need to override these for access to your database
 #
+#my $dbuser="yzs572";
+#my $dbpasswd="zQmys30eX";
 my $dbuser="sli401";
 my $dbpasswd="zoS37Klsi";
 
@@ -474,6 +476,12 @@ if ($action eq "near") {
   my $calc = param("calc");
   my %what;
   
+  # Every time subrountine "committees" or "individual" 
+  # or "opinion" execute, they will return new location index that 
+  # contain minimal number of dataSize, the new location is as following:
+ 
+  # Then the summary money routines will execute on new location data
+  
   $format = "table" if !defined($format);
   $cycle = "1112" if !defined($cycle);
 
@@ -486,12 +494,16 @@ if ($action eq "near") {
     map {$what{$_}=1} split(/\s*,\s*/,$whatparam);
   }
            
+  # The calc parameter is to decided whether to perform a
+  # geolocation query or a aggregation data query
 
   if ($calc eq '0') {
     if ($what{committees}) { 
-      my ($str,$error) = Committees($latne,$longne,$latsw,$longsw,$cycle,$format);
-  
+      my ($str,$latswN,$longswN,$latneN,$longneN,$error) = Committees($latne,$longne,$latsw,$longsw,$cycle,$format);
+
       if (!$error) {
+        print "<div id='comNewLoc'>$latswN,$longswN,$latneN,$longneN</div>";
+
         if ($format eq "table") { 
           print "<h2>Nearby committees</h2>$str";
         } else {
@@ -511,8 +523,11 @@ if ($action eq "near") {
     }
     if ($what{individuals}) {
       
-      my ($str,$error) = Individuals($latne,$longne,$latsw,$longsw,$cycle,$format);
+      my ($str,$latneN,$longneN,$latswN,$longswN,$error) = Individuals($latne,$longne,$latsw,$longsw,$cycle,$format);
+      
       if (!$error) {
+        print "<div id='indNewLoc'>$latneN,$longneN,$latswN,$longswN</div>";
+
         if ($format eq "table") { 
           print "<h2>Nearby individuals</h2>$str";
         } else {
@@ -521,8 +536,11 @@ if ($action eq "near") {
       }
     }
     if ($what{opinions}) {
-      my ($str,$error) = Opinions($latne,$longne,$latsw,$longsw,$cycle,$format);
+      my ($str,$latneN,$longneN,$latswN,$longswN,$error) = Opinions($latne,$longne,$latsw,$longsw,$cycle,$format);
+      
       if (!$error) {
+        print "<div id='opNewLoc'>$latneN,$longneN,$latswN,$longswN</div>";
+
         if ($format eq "table") { 
           print "<h2>Nearby opinions</h2>$str";
         } else {
@@ -533,6 +551,7 @@ if ($action eq "near") {
   } else {
     print "<div>";
     print p;
+  
     if ($what{committees}) {
       my ($comMoneyBlue, $comMoneyRed, $error) = committeeMoney($latne,$longne,$latsw,
                                                                 $longsw,$cycle,$format);
@@ -959,6 +978,16 @@ print end_html;
 sub Committees {
   my ($latne,$longne,$latsw,$longsw,$cycle,$format) = @_;
   my @rows;
+  my @newRows;
+
+  my $dataSize;
+  my $newLatsw;
+  my $newLatne;
+  my $newLongsw;
+  my $newLongne;
+
+  my $count = 0;
+  
   eval { 
     @rows = ExecSQL($dbuser, $dbpasswd,
                     "select latitude, longitude, cmte_nm, cmte_pty_affiliation, 
@@ -968,23 +997,41 @@ sub Committees {
                            longitude>? and longitude<?",
                     undef,$cycle,$latsw,$latne,$longsw,$longne);
   };
+
+  $dataSize = @rows; #the number of rows from the SQL query.
+
+  # A counter is set up to avoid infinite loop.
+  while ($dataSize < 5 && $count <= 10) {
+    $newLatsw  = $latsw -($latne-$latsw)/2;
+    $newLongsw = $longsw - ($longne-$longsw)/2;
+    $newLatne  = $latne + ($latne-$latsw)/2;
+    $newLongne = $longne + ($longne-$longsw)/2;
+    $latsw = $newLatsw;
+    $longsw = $newLongsw;
+    $latne = $newLatne;
+    $longne = $newLongne;
+    eval { 
+      @newRows = ExecSQL($dbuser, $dbpasswd, 
+                         "select latitude, longitude, cmte_nm, cmte_pty_affiliation, 
+                                 cmte_st1, cmte_st2, cmte_city, cmte_st, cmte_zip 
+                          from cs339.committee_master natural join cs339.cmte_id_to_geo 
+                          where cycle=? and latitude>? and latitude<? and longitude>? and longitude<?",
+                         undef,$cycle,$latsw,$latne,$longsw,$longne);
+    };
+    $dataSize = @newRows;
+    $count = $count + 1;
+  }
   
-  # my $i = 1
-  # while (length < 5)
-    # {    SQL;($latne * $i)
-        
-        # $i = $i * 2
-        
-    
   if ($@) { 
-    return (undef,$@);
+    return (undef,$latne,$longne,$latsw,$longsw,$@);
   } else {
     if ($format eq "table") { 
       return (MakeTable("committee_data","2D",
-            ["latitude", "longitude", "name", "party", "street1", "street2", "city", "state", "zip"],
-            @rows),$@);
+              ["latitude", "longitude", "name", "party", "street1", "street2", "city", "state", "zip"],
+              @rows),$latne,$longne,$latsw,$longsw,$@);
     } else {
-      return (MakeRaw("committee_data","2D",@rows),$@);
+      return (MakeRaw("committee_data","2D",@rows),
+             $latne,$longne,$latsw,$longsw,$@);
     }
   }
 }
@@ -1033,6 +1080,15 @@ sub Candidates {
 sub Individuals {
   my ($latne,$longne,$latsw,$longsw,$cycle,$format) = @_;
   my @rows;
+  my @newRows;
+  my $dataSize;
+  my $newLatsw;
+  my $newLatne;
+  my $newLongsw;
+  my $newLongne;
+
+  my $count = 0;
+   
   eval { 
     @rows = ExecSQL($dbuser, $dbpasswd,
                     "select latitude, longitude, name, city, state, 
@@ -1043,15 +1099,39 @@ sub Individuals {
                     undef,$cycle,$latsw,$latne,$longsw,$longne);
   };
   
+  $dataSize = @rows;
+  while ($dataSize < 10 && $count <= 10) {
+    $newLatsw  = $latsw -($latne-$latsw)/2;
+    $newLongsw = $longsw - ($longne-$longsw)/2;
+    $newLatne  = $latne + ($latne-$latsw)/2;
+    $newLongne = $longne + ($longne-$longsw)/2;
+    $latsw = $newLatsw;
+    $longsw = $newLongsw;
+    $latne = $newLatne;
+    $longne = $newLongne;
+
+    eval { 
+    @newRows = ExecSQL($dbuser, $dbpasswd,
+                       "select latitude, longitude, name, city, state, 
+                               zip_code, employer, transaction_amnt 
+                        from cs339.individual natural join cs339.ind_to_geo 
+                        where cycle=? and latitude>? and latitude<? and 
+                              longitude>? and longitude<?",
+                       undef,$cycle,$latsw,$latne,$longsw,$longne);
+    };
+    $dataSize = @newRows;
+    $count = $count + 1;
+  }
+  
   if ($@) { 
     return (undef,$@);
   } else {
     if ($format eq "table") { 
       return (MakeTable("individual_data", "2D",
             ["latitude", "longitude", "name", "city", "state", "zip", "employer", "amount"],
-            @rows),$@);
+            @rows),$latne,$longne,$latsw,$longsw,$@);
     } else {
-      return (MakeRaw("individual_data","2D",@rows),$@);
+      return (MakeRaw("individual_data","2D",@rows),$latne,$longne,$latsw,$longsw,$@);
     }
   }
 }
@@ -1066,6 +1146,15 @@ sub Individuals {
 sub Opinions {
   my ($latne, $longne, $latsw, $longsw, $cycle,$format) = @_;
   my @rows;
+  my @newRows;
+  my $dataSize;
+  my $newLatsw;
+  my $newLatne;
+  my $newLongsw;
+  my $newLongne;
+
+  my $count = 0;
+  
   eval { 
     @rows = ExecSQL($dbuser, $dbpasswd,
                     "select latitude, longitude, color 
@@ -1075,15 +1164,38 @@ sub Opinions {
                     undef,$latsw,$latne,$longsw,$longne);
   };
   
+  $dataSize = @rows;
+  while ($dataSize < 2 && $count <= 10) {
+    $newLatsw  = $latsw - ($latne-$latsw)/2;
+    $newLongsw = $longsw - ($longne-$longsw)/2;
+    $newLatne  = $latne + ($latne-$latsw)/2;
+    $newLongne = $longne + ($longne-$longsw)/2;
+    $latsw = $newLatsw;
+    $longsw = $newLongsw;
+    $latne = $newLatne;
+    $longne = $newLongne;
+ 
+    eval { 
+      @newRows = ExecSQL($dbuser, $dbpasswd,
+                      "select latitude, longitude, color 
+                       from rwb_opinions 
+                       where latitude>? and latitude<? and 
+                             longitude>? and longitude<?",
+                      undef,$latsw,$latne,$longsw,$longne);
+    };
+    $dataSize = @newRows;
+    $count = $count + 1;
+  }
+  
   if ($@) { 
     return (undef,$@);
   } else {
     if ($format eq "table") { 
       return (MakeTable("opinion_data","2D",
             ["latitude", "longitude", "name", "city", "state", "zip", "employer", "amount"],
-            @rows),$@);
+            @rows),$latne,$longne,$latsw,$longsw,$@);
     } else {
-      return (MakeRaw("opinion_data","2D",@rows),$@);
+      return (MakeRaw("opinion_data","2D",@rows),$latne,$longne,$latsw,$longsw,$@);
     }
   }
 }
@@ -1313,7 +1425,6 @@ sub MakeRaw {
   $out="<pre id=\"$id\">\n";
   #
   # If it's a single row, just output it in an obvious way
-  #
   if ($type eq "ROW") { 
     #
     # map {code} @list means "apply this code to every member of the list
@@ -1552,47 +1663,6 @@ sub opinionSum {
           return ($opinions[0][0],$opinions[0][1],$@);
         }
 }
-sub localCommitteeNumber {
-    my ($latne,$longne,$latsw,$longsw,$cycle,$format) = @_;
-    my (@localCommitteeNumber);
-    
-    eval {
-    @localCommitteeNumber = ExecSQL($dbuser, $dbpasswd, "select count(cmte_id)
-                                                    from cs339.committee_master
-                                                    natural join cs339.cmte_id_to_geo
-                                                    where cycle=? and latitude>? and latitude<? 
-                                                    and longitude>? and longitude<?",
-                                                    undef,$cycle,$latsw,$latne,$longsw,$longne); 
-                                                    
-    };
-    
-    if ($@) {
-    return (undef,$@);
-    } else {
-      return ($localCommitteeNumber[0][0],$@);
-    }
-}
-
-sub localCandidateNumber {
-    my ($latne,$longne,$latsw,$longsw,$cycle,$format) = @_;
-    my (@localCandidateNumber);
-    
-    eval {
-    @localCandidateNumber = ExecSQL($dbuser, $dbpasswd, "select count(cand_id)
-                                                    from cs339.candidate_master
-                                                    natural join cs339.cand_id_to_geo
-                                                    where cycle=? and latitude>? and latitude<? 
-                                                    and longitude>? and longitude<?",
-                                                    undef,$cycle,$latsw,$latne,$longsw,$longne); 
-    };
-    
-    if ($@) {
-    return (undef,$@);
-    } else #if ($localCandidateNumber[0][0]<5){
-    {
-      return ($localCandidateNumber[0][0],$@);
-    }
-}    
 
 
 ######################################################################
