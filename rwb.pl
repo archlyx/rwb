@@ -1,5 +1,4 @@
 #!/usr/bin/perl -w
-# deep test
 #
 #
 # rwb.pl (Red, White, and Blue)
@@ -397,7 +396,7 @@ if ($action eq "base") {
     }
     if (UserCan($user,"query-fec-data") || UserCan($user,"query-opinion-data")) {
       #
-      # The options for data
+      # The checkbox and dropdown menu
       #
       #
       print "<div id=\"filter\" style=\"width:15\%\">";
@@ -421,6 +420,7 @@ if ($action eq "base") {
                   'individuals' => 'Individuals',
                   'opinions' => 'Opinions');
 
+      # Checkbox for committees/individuals/candidate/opinions
       print start_form(-name=>'selections', -id=>'selections'),
             h3("Select data"),
             checkbox_group(
@@ -431,7 +431,8 @@ if ($action eq "base") {
             -columns  => 1,
             -width    => '50%',
             -rows     => scalar @values), p;
-        
+      
+      # Dropdown for the cycles selection
       print 'Select cycle ';
       print popup_menu(
             -name => 'dropdown',
@@ -473,14 +474,12 @@ if ($action eq "near") {
   my $whatparam = param("what");
   my $format = param("format");
   my $cycle = param("cycle");
+
+  # The calc parameter is to decide whether to perform a
+  # geolocation query or a aggregation data query
   my $calc = param("calc");
   my %what;
   
-  # Every time subrountine "committees" or "individual" 
-  # or "opinion" execute, they will return new location index that 
-  # contain minimal number of dataSize, the new location is as following:
- 
-  # Then the summary money routines will execute on new location data
   
   $format = "table" if !defined($format);
   $cycle = "1112" if !defined($cycle);
@@ -494,8 +493,6 @@ if ($action eq "near") {
     map {$what{$_}=1} split(/\s*,\s*/,$whatparam);
   }
            
-  # The calc parameter is to decided whether to perform a
-  # geolocation query or a aggregation data query
 
   if ($calc eq '0') {
     if ($what{committees}) { 
@@ -1022,10 +1019,23 @@ sub Committees {
                            longitude>? and longitude<?",
                     undef,$cycle,$latsw,$latne,$longsw,$longne);
   };
+  #
+  # PROGRESSIVE IMPLEMENTATION
+  #
+  # Every time subrountine "committees" or "individual" 
+  # or "opinion" execute, they will return new location index that 
+  # contain following minimal numbers:
+  #  -- Committee:   5
+  #  -- Individuals: 10
+  #  -- Opinions:    2
+  #
+  # The subroutine will run at most 10 times to enlarge the searching
+  # area.
+  #
+  # Then the summary money routines will execute on new location data
 
   $dataSize = @rows; #the number of rows from the SQL query.
 
-  # A counter is set up to avoid infinite loop.
   while ($dataSize < 5 && $count <= 10) {
     $newLatsw  = $latsw -($latne-$latsw)/2;
     $newLongsw = $longsw - ($longne-$longsw)/2;
@@ -1594,26 +1604,26 @@ sub OpinionAdd {
   return $@;
 }
 
-#the subrountine that calculate the total money invovled by committee    
-# committee_to_candidate, committee_to_committee 
-# when come to comm_to_comm, the situatio is more complicated: 
-# the contributor and receiver are all committtees, which of them should we account for?
-# the implementation here is to account only the committee contributor, and divide the party by receiver committee
+# The subrountine that calculate the total money involved by committee    
+#     committee_to_candidate
+#     committee_to_committee 
+# When come to comm_to_comm, the situation is more complicated: 
+# The implementation here is to account only the committee contributor, and divide the party by receiver committee
 # DEM assigned to blue, REP assigned to red
         
 sub commToOffice {
-		my ($latne,$longne,$latsw,$longsw,$cycle,$format) = @_;
-		my @moneyOffice;
-		eval{ @moneyOffice = ExecSQL($dbuser, $dbpasswd,
-									  "select cand_office, sum(transaction_amnt)
-										from cs339.candidate_master natural join 
-										cs339.comm_to_cand natural join cs339.cand_id_to_geo 
-										where latitude>? and latitude<? and 
+        my ($latne,$longne,$latsw,$longsw,$cycle,$format) = @_;
+        my @moneyOffice;
+        eval{ @moneyOffice = ExecSQL($dbuser, $dbpasswd,
+                                      "select cand_office, sum(transaction_amnt)
+                                        from cs339.candidate_master natural join 
+                                        cs339.comm_to_cand natural join cs339.cand_id_to_geo 
+                                        where latitude>? and latitude<? and 
                                         longitude>? and longitude<? and cycle =?
-										group by cand_office order by cand_office",
-										undef,$latsw,$latne,$longsw,$longne,$cycle); };
-		
-		if ($@) {
+                                        group by cand_office order by cand_office",
+                                        undef,$latsw,$latne,$longsw,$longne,$cycle); };
+        
+        if ($@) {
           return (undef,$@);
         } else {
           return ($moneyOffice[0][1],$moneyOffice[1][1],$moneyOffice[2][1],$@);
@@ -1621,6 +1631,7 @@ sub commToOffice {
 }
 									
 		
+# Subroutines to calculate aggregated view
 sub committeeMoney {
         my ($latne,$longne,$latsw,$longsw,$cycle,$format) = @_;
         my (@moneyCand, @moneyComm);

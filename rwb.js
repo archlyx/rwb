@@ -10,7 +10,6 @@
 //
 // First time run: request current location, with callback to Start
 //
-//var totalIndMoney;
 
 if (navigator.geolocation)  {
     navigator.geolocation.getCurrentPosition(Start);
@@ -28,6 +27,8 @@ function UpdateMapById(id, tag) {
             var lat   = cols[0];
             var long  = cols[1];
             var party = cols[3];
+
+            // Showing different markers for different parties
             var markerFile;
             if (party == "DEM")
                 markerFile = 'img/comm_blue.png';
@@ -139,6 +140,7 @@ function UpdateMap()
 
     ClearMarkers();
     
+    // Capture the selections from the checkbox
     var selected = [];
     $("input:checkbox[name=options]:checked").each(function() {
        selected.push($(this).val());
@@ -179,6 +181,8 @@ function NewData(data)
 
 }
 
+// NewCalc is used to parse the aggregated view
+// and color the nunmbers
 function NewCalc(calc)
 {
   var target = document.getElementById("calc");
@@ -229,6 +233,7 @@ function ViewShift()
         calc.innerHTML="<b><blink>Generating Summary...</blink></b>";
     }
 
+    // Pass the progressive geolocations to the aggregated view calculation
     var latlng = [];
     if (isInArray(selected, "committees")) {
       var comNewLoc = document.getElementById("comNewLoc").innerHTML.split(',');
@@ -247,6 +252,7 @@ function ViewShift()
       }
     }
 
+    // Request an anggregated view when param('calc') = 1
     $.get("rwb.pl?act=near&latne="+latlng[0]+"&longne="+latlng[1]+"&latsw="+latlng[2]+"&longsw="+latlng[3]+"&format=raw&cycle="+cyclenum+"&what="+whatselected+"&calc=1", NewCalc);
 
 }
@@ -296,6 +302,7 @@ function Start(location)
     google.maps.event.addListener(map,"center_changed",ViewShift);
     google.maps.event.addListener(map,"zoom_changed",ViewShift);
     
+    // Listener for CONFIRM button
     var confirmButton = document.getElementById('confirmButton');
     confirmButton.addEventListener('click',ViewShift);
     
