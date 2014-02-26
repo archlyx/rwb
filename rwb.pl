@@ -555,9 +555,17 @@ if ($action eq "near") {
     if ($what{committees}) {
       my ($comMoneyBlue, $comMoneyRed, $error) = committeeMoney($latne,$longne,$latsw,
                                                                 $longsw,$cycle,$format);
+	  my ($commToH, $commToP, $commToS, $error2) = commToOffice($latne,$longne,$latsw,
+                                                                $longsw,$cycle,$format);
+	  if (!defined($commToH))
+			{$commToH = 0;}
+	  if (!defined($commToP))
+			{$commToP = 0;}
+	  if (!defined($commToS))
+			{$commToS = 0;}			
   
       if (!$error) {
-        print "<h3>Money from <b>COMMITTEES</b></h3>";
+        print "<h3>Money from <b>COMMITTEES</b> to parties</h3>";
         print "Democratic: <span style=\"background-color: blue; color: white;\">
                $comMoneyBlue
                </span>";
@@ -567,6 +575,23 @@ if ($action eq "near") {
                </span>";
         print p;
       }
+	  
+	  if (!$error2){
+        print "<h3>Money from <b>COMMITTEES</b> to offices</h3>";
+        print "House: <span style=\"background-color: green; color: white;\">
+               $commToH
+               </span>";
+        print p;
+        print "President: <span style=\"background-color: green; color: white;\">
+               $commToP
+               </span>";
+        print p;
+		print "Senate: <span style=\"background-color: green; color: white;\">
+               $commToS
+               </span>";
+        print p;
+      }
+	  
     }
     if ($what{individuals}) {
       my ($indMoneyBule,$indMoneyRed,$error) = individualMoney($latne,$longne,$latsw,
@@ -1576,6 +1601,26 @@ sub OpinionAdd {
 # the implementation here is to account only the committee contributor, and divide the party by receiver committee
 # DEM assigned to blue, REP assigned to red
         
+sub commToOffice {
+		my ($latne,$longne,$latsw,$longsw,$cycle,$format) = @_;
+		my @moneyOffice;
+		eval{ @moneyOffice = ExecSQL($dbuser, $dbpasswd,
+									  "select cand_office, sum(transaction_amnt)
+										from cs339.candidate_master natural join 
+										cs339.comm_to_cand natural join cs339.cand_id_to_geo 
+										where latitude>? and latitude<? and 
+                                        longitude>? and longitude<? and cycle =?
+										group by cand_office order by cand_office",
+										undef,$latsw,$latne,$longsw,$longne,$cycle); };
+		
+		if ($@) {
+          return (undef,$@);
+        } else {
+          return ($moneyOffice[0][1],$moneyOffice[1][1],$moneyOffice[2][1],$@);
+        }
+}
+									
+		
 sub committeeMoney {
         my ($latne,$longne,$latsw,$longsw,$cycle,$format) = @_;
         my (@moneyCand, @moneyComm);
