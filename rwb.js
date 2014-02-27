@@ -217,9 +217,10 @@ function ViewShift()
     var cyclenum = $("#cycles").val();
    
     var selected = []; 
-    $("input:checkbox[name=options]:checked").each(function() {
+    $(".checkbox:checked").each(function() {
         selected.push($(this).val());
     });
+
     var whatselected = selected.join();
     console.log(whatselected);
 
@@ -227,33 +228,35 @@ function ViewShift()
     color.style.backgroundColor='white';
    
     // debug status flows through by cookie
-    $.get("rwb.pl?act=near&latne="+ne.lat()+"&longne="+ne.lng()+"&latsw="+sw.lat()+"&longsw="+sw.lng()+"&format=raw&cycle="+cyclenum+"&what="+whatselected+"&calc=0", NewData);
+    var d1 = $.get("rwb.pl?act=near&latne="+ne.lat()+"&longne="+ne.lng()+"&latsw="+sw.lat()+"&longsw="+sw.lng()+"&format=raw&cycle="+cyclenum+"&what="+whatselected+"&calc=0", NewData);
+    $.when(d1).done(function() {
+        if (whatselected) {
+            calc.innerHTML="<b><blink>Generating Summary...</blink></b>";
+        }
+    
+        // Pass the progressive geolocations to the aggregated view calculation
+        var latlng = [];
+        if (isInArray(selected, "committees")) {
+          var comNewLoc = document.getElementById("comNewLoc").innerHTML.split(',');
+          latlng = comNewLoc;
+        }
+        if (isInArray(selected, "individuals")) {
+          var indNewLoc = document.getElementById("indNewLoc").innerHTML.split(',');
+          if (indNewLoc[0] > latlng[0] || latlng.length < 1) {
+              latlng = indNewLoc;
+          }
+        }
+        if (isInArray(selected, "opinions")) {
+          var opNewLoc = document.getElementById("opNewLoc").innerHTML.split(',');
+          if (opNewLoc[0] > latlng[0] || latlng.length < 1) {
+              latlng = opNewLoc;
+          }
+        }
+    
+        // Request an anggregated view when param('calc') = 1
+        $.get("rwb.pl?act=near&latne="+latlng[0]+"&longne="+latlng[1]+"&latsw="+latlng[2]+"&longsw="+latlng[3]+"&format=raw&cycle="+cyclenum+"&what="+whatselected+"&calc=1", NewCalc);
+    });
 
-    if (whatselected) {
-        calc.innerHTML="<b><blink>Generating Summary...</blink></b>";
-    }
-
-    // Pass the progressive geolocations to the aggregated view calculation
-    var latlng = [];
-    if (isInArray(selected, "committees")) {
-      var comNewLoc = document.getElementById("comNewLoc").innerHTML.split(',');
-      latlng = comNewLoc;
-    }
-    if (isInArray(selected, "individuals")) {
-      var indNewLoc = document.getElementById("indNewLoc").innerHTML.split(',');
-      if (indNewLoc[0] > latlng[0] || latlng.length < 1) {
-          latlng = indNewLoc;
-      }
-    }
-    if (isInArray(selected, "opinions")) {
-      var opNewLoc = document.getElementById("opNewLoc").innerHTML.split(',');
-      if (opNewLoc[0] > latlng[0] || latlng.length < 1) {
-          latlng = opNewLoc;
-      }
-    }
-
-    // Request an anggregated view when param('calc') = 1
-    $.get("rwb.pl?act=near&latne="+latlng[0]+"&longne="+latlng[1]+"&latsw="+latlng[2]+"&longsw="+latlng[3]+"&format=raw&cycle="+cyclenum+"&what="+whatselected+"&calc=1", NewCalc);
 
 }
 

@@ -322,7 +322,7 @@ if ($action eq "base") {
   #
   # Google maps API, needed to draw the map
   #
-  print "<script src=\"http://ajax.googleapis.com/ajax/libs/jquery/1.4.2/jquery.min.js\" type=\"text/javascript\"></script>";
+  print "<script src=\"http://ajax.googleapis.com/ajax/libs/jquery/1.8.2/jquery.min.js\" type=\"text/javascript\"></script>";
   print "<script src=\"http://maps.google.com/maps/api/js?sensor=false\" type=\"text/javascript\"></script>";
   
   #
@@ -425,6 +425,7 @@ if ($action eq "base") {
             h3("Select data"),
             checkbox_group(
             -name     => 'options',
+            -class    => 'checkbox',
             -values   => \@values,
             -labels   => \%labels,
             -id       => 'checkbox_group_id',
